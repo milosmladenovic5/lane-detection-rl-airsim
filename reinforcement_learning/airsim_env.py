@@ -7,6 +7,7 @@ import math
 import time
 import gym
 from gym import spaces
+from math import sin, cos, sqrt, atan2, radians
 from general_tools.road_lines import load_road_lines
 from general_tools.utils import *
 from scipy.spatial.distance import euclidean
@@ -23,17 +24,21 @@ region_of_interest_vertices = [
     (205, 0)
 ]
 
+TARGET_LATITUDE =  47.645778419398034
+TARGET_LONGITUDE = -122.13657136870823
+
+
 HEIGHT = 65
 WIDTH  = 255
 CENTER = np.array([WIDTH // 2, HEIGHT // 2])
 
 MAX_DISTANCE_ALLOWED = 60
 
-GRAY_DIFFERENCE_THRESHOLD = 13
-LEFT_RIGHT_DIFF_TRESHOLD = 15
+GRAY_DIFFERENCE_THRESHOLD = 25
+LEFT_RIGHT_DIFF_TRESHOLD = 18
 
-LEFT_PIXEL_DISTANCE = 30
-RIGHT_PIXEL_DISTANCE = 35
+LEFT_PIXEL_DISTANCE = 50
+RIGHT_PIXEL_DISTANCE = 50
 
 def region_of_interest(img, vertices):
         # Define a blank matrix that matches the image height/width.
@@ -56,7 +61,7 @@ def brightness(img, val):
     img[img > limit] = 255
     img[img < limit] += val
 
-def val_diff_greater_than_treshold(treshold, first_val, second_val, third_val):
+def val_diff_greater_than_threshold(threshold, first_val, second_val, third_val):
     diff_first_second = 0
     diff_second_third = 0
     diff_first_third = 0
@@ -65,14 +70,58 @@ def val_diff_greater_than_treshold(treshold, first_val, second_val, third_val):
     diff_second_third = second_val - third_val if second_val > third_val else third_val - second_val
     diff_first_third = first_val - third_val if first_val > third_val else third_val - first_val 
     
-    return diff_first_second > treshold or diff_second_third > treshold or diff_first_third > treshold 
+    return diff_first_second > threshold or diff_second_third > threshold or diff_first_third > threshold 
+
+def diff_between_two_rgb_threshold(threshold, r1, g1, b1, r2, g2, b2):
+    diff_r1_r2 = 0
+    diff_g1_g2 = 0
+    diff_b1_b2 = 0
+
+    diff_r1_r2 = r1 - r2 if r1 > r2 else r2 - r1
+    diff_g1_g2 = g1 - g2 if g1 > g2 else g2 - g1 
+    diff_b1_b2 = b1 - b2 if b1 > b2 else b2 - b1
+
+    return diff_r1_r2 > threshold or diff_g1_g2 > threshold or diff_b1_b2 > threshold
+
+def get_distance_from_target(gp):
+    R = 6373.0
+
+    lat1 = radians(gp.latitude)
+    lon1 = radians(gp.longitude)
+    lat2 = radians(TARGET_LATITUDE)
+    lon2 = radians(TARGET_LONGITUDE)
+
+    dlon = lon2 - lon1
+    dlat = lat2 - lat1
+
+    a = sin(dlat / 2)**2 + cos(lat1) * cos(lat2) * sin(dlon / 2)** 2
+    c = 2 * atan2(sqrt(a), sqrt(1 - a))
+
+    return R * c
+
+def get_distance(gp1, gp2):
+    R = 6373.0
+
+    lat1 = radians(gp1.latitude)
+    lon1 = radians(gp1.longitude)
+    lat2 = radians(gp2.latitude)
+    lon2 = radians(gp2.longitude)
+
+    dlon = lon2 - lon1
+    dlat = lat2 - lat1
+
+    a = sin(dlat / 2)**2 + cos(lat1) * cos(lat2) * sin(dlon / 2)** 2
+    c = 2 * atan2(sqrt(a), sqrt(1 - a))
+
+    return R * c
+
 
 class AirSimGym(gym.Env):
     def __init__(self, crop_h1=70, crop_h2=135, crop_w1=0, crop_w2=255, n_channels_env=3,\
                  continuous=True, low=(-1.0, -1.0), high=(1.0, 1.0), action_map=(True, False), steering_angles=3, obs_is_image_only=True, sleep_after_action=0.02,\
-                 hold_mid_reward_decay_rate=1.0, speed_reward_decay_rate=1.2, off_road_reward=-5.0, off_road_dist=4.2, crashed_reward=-20.0, stuck_reward=-25.0,\
+                 hold_mid_reward_decay_rate=1.0, speed_reward_decay_rate=1.2, off_road_reward=-8.0, off_road_dist=4.2, crashed_reward=-20.0, stuck_reward=-25.0,\
                  goal_point_exists=True, goal=None, goal_reached_reward=25.0, goal_reached_dist=5.0, hold_mid_reward_mul=10.0, speed_reward_mul=7.0,\
-                 max_speed=20.0, min_allowed_speed=1.7, steps_at_min_speed_allowed=55, scale_reward=False, api_control=True, pause_after=None, ip="", port=41451):
+                 max_speed=10.0, min_allowed_speed=1.7, steps_at_min_speed_allowed=55, scale_reward=False, api_control=True, pause_after=None, ip="", port=41451):
         """        
         :param crop_h1: (int) - lower bound of the height final image to be used in observation
         :param crop_h2: (int) - upper bound of the height final image to be used in observation
@@ -151,7 +200,12 @@ class AirSimGym(gym.Env):
         self.client.enableApiControl(api_control)
 
         self.off_road_cumulative_reward = 0
-
+        
+        self.home_point = self.client.getHomeGeoPoint()
+        print (f"HomePoint is {self.home_point}")
+        self.target_distance_from_home = get_distance_from_target(self.home_point)
+        self.last_known_distance = self.target_distance_from_home
+        
         if self.continious:
             self.action_space = spaces.Box(low=np.array(self.low), high=np.array(self.high), dtype=np.float32)
             self._act = self._act_continuous
@@ -203,10 +257,10 @@ class AirSimGym(gym.Env):
         frame = cv2.GaussianBlur(img, (5, 5), 0)
         hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
         low_yellow = np.array([18, 25, 140])
-        up_yellow = np.array([48, 255, 255])
+        up_yellow = np.array([48, 200, 180])
         mask = cv2.inRange(hsv, low_yellow, up_yellow)
         
-        edges = cv2.Canny(mask, 75, 150)
+        edges = cv2.Canny(mask, 100, 150)
 
         #cropped_image = region_of_interest(edges, np.array([region_of_interest_vertices], np.int32))
         lines = cv2.HoughLinesP(edges, 2, np.pi/180, 25, maxLineGap=3)
@@ -251,8 +305,9 @@ class AirSimGym(gym.Env):
                 green_right = img[line_start_y][line_start_x + RIGHT_PIXEL_DISTANCE if line_start_x + RIGHT_PIXEL_DISTANCE < WIDTH else line_start_x][1]
                 blue_right = img[line_start_y][line_start_x + RIGHT_PIXEL_DISTANCE if line_start_x + RIGHT_PIXEL_DISTANCE < WIDTH else line_start_x][2]
 
-                if not (val_diff_greater_than_treshold(GRAY_DIFFERENCE_TRESHOLD, red_left, green_left, blue_left) \
-                    or val_diff_greater_than_treshold(GRAY_DIFFERENCE_TRESHOLD, red_right, green_right, blue_right)):
+                if not (val_diff_greater_than_threshold(GRAY_DIFFERENCE_THRESHOLD, red_left, green_left, blue_left) \
+                    or val_diff_greater_than_threshold(GRAY_DIFFERENCE_THRESHOLD, red_right, green_right, blue_right) \
+                    or diff_between_two_rgb_threshold(LEFT_RIGHT_DIFF_TRESHOLD, red_left, green_left, blue_left, red_right, green_right, blue_right)):      
 
                     nearest_line_distance = min(nearest_line_distance,\
                                                 distance_from_the_line(np.array([line[0][0], line[0][1]]), np.array([line[0][2], line[0][3]]), CENTER))
@@ -344,6 +399,8 @@ class AirSimGym(gym.Env):
         Computes the reward value for the agent and decides if the current episode should finish
         Reward is based on the state of the agent (stuck, crashed, off road..)
         """
+        geo_point_current = self.client.simGetGroundTruthEnvironment().geo_point 
+        distance_from_target = get_distance_from_target(geo_point_current)
 
         if (self._goal_reached() if self.goal_point_exists else False):
             reward, done = self.goal_reached_reward, True     
@@ -356,14 +413,15 @@ class AirSimGym(gym.Env):
                 
             if nearest_line_distance == -1:
                 self.off_road_cumulative_reward += -1 
-                if self.off_road_cumulative_reward == -7:
+                if self.off_road_cumulative_reward == -5:
                     self.off_road_cumulative_reward = 0
                     reward, done = self.off_road_reward, True
                 else:
                     reward, done = -1, False
             else:
-                self.off_road_cumulative_reward = 0
-                reward, done = (self.hold_mid_reward_mul * np.exp(-nearest_line_distance * self.hold_mid_reward_decay_rate) + self._speed_contrib()), False
+                #self.off_road_cumulative_reward = 0
+                closer_to_goal_contrib = 1 if distance_from_target < self.last_known_distance else 0 
+                reward, done = (self.hold_mid_reward_mul * np.exp(-nearest_line_distance * self.hold_mid_reward_decay_rate) + self._speed_contrib() + closer_to_goal_contrib), False
 
         return reward / self.reward_scale_factor, done
 

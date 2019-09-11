@@ -17,16 +17,17 @@ region_of_interest_vertices = [
     (205, 0)
 ]
 
-MAX_DISTANCE_ALLOWED = 60
 HEIGHT = 65
 WIDTH  = 255
 CENTER = np.array([WIDTH // 2, HEIGHT // 2])
 
-GRAY_DIFFERENCE_THRESHOLD = 13
-LEFT_RIGHT_DIFF_TRESHOLD = 15
+MAX_DISTANCE_ALLOWED = 60
 
-LEFT_PIXEL_DISTANCE = 30
-RIGHT_PIXEL_DISTANCE = 35
+GRAY_DIFFERENCE_THRESHOLD = 25
+LEFT_RIGHT_DIFF_TRESHOLD = 18
+
+LEFT_PIXEL_DISTANCE = 50
+RIGHT_PIXEL_DISTANCE = 50
 
 def region_of_interest(img, vertices):
         # Define a blank matrix that matches the image height/width.
@@ -127,14 +128,14 @@ def _draw_lines(img, lines):
         green_right = img[line_start_y][line_start_x + RIGHT_PIXEL_DISTANCE if line_start_x + RIGHT_PIXEL_DISTANCE < WIDTH else line_start_x][1]
         blue_right = img[line_start_y][line_start_x + RIGHT_PIXEL_DISTANCE if line_start_x + RIGHT_PIXEL_DISTANCE < WIDTH else line_start_x][2]
 
-        print(f"Rleft: {red_left}, gleft {green_left}, bleft: {blue_left}. Rright: {red_right}, gright {green_right}, bright: {blue_right}.")
+        #print(f"Rleft: {red_left}, gleft {green_left}, bleft: {blue_left}. Rright: {red_right}, gright {green_right}, bright: {blue_right}.")
 
         if not (val_diff_greater_than_threshold(GRAY_DIFFERENCE_THRESHOLD, red_left, green_left, blue_left) \
             or val_diff_greater_than_threshold(GRAY_DIFFERENCE_THRESHOLD, red_right, green_right, blue_right) \
             or diff_between_two_rgb_threshold(LEFT_RIGHT_DIFF_TRESHOLD, red_left, green_left, blue_left, red_right, green_right, blue_right)):            
             #print (f"Red value for near pixels is: {red_left}, green is {green_left}: , blue is {blue_left}")   
             #print (f"Line start x: {line_start_x}, line start y: {line_start_y}. Line end x: {line_end_x}, line end y: {line_end_y}") 
-
+            
             cv2.line(img, (x1, y1), (x2, y2), (0, 255, 0), 5)
 
 def _draw_lines2(img, lines):

@@ -42,7 +42,8 @@ def callback(_locals, _globals):
     return True
 
 if __name__ == "__main__":
-    env = AirSimGym(continuous=False, off_road_dist=3.9, max_speed=8.0, scale_reward=True)
+    steering_angles = np.array([-0.7, -0.5, -0.25, 0.0, 0.25, 0.5, 0.7])
+    env = AirSimGym(continuous=False, off_road_dist=2.9, max_speed=3.6, scale_reward=True, steering_angles=steering_angles)
     env = Monitor(env, log_dir, allow_early_resets=True)
     env = DummyVecEnv([lambda: env])
 
@@ -61,7 +62,7 @@ if __name__ == "__main__":
 
     start_date = datetime.now()
     #model = DQN.load(log_dir + "best_model.pkl", env=env)
-    model.learn(total_timesteps=500000, log_interval=50, callback=callback)
+    model.learn(total_timesteps=500000, log_interval=200, callback=callback)
     end_date = datetime.now()
     hours = int((end_date - start_date).total_seconds()) // 3600
     model.save(f"./models/dqn_final_ver{VER_NO}_{hours}hrs.pkl")
