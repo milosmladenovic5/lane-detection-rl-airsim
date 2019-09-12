@@ -12,6 +12,7 @@ from datetime import datetime
 VER_NO = 2
 best_mean_reward, n_steps = -np.inf, 0
 log_dir = "./log_dir/"
+models = "./models/"
 
 
 def callback(_locals, _globals):
@@ -61,7 +62,7 @@ if __name__ == "__main__":
                 prioritized_replay=True)
 
     start_date = datetime.now()
-    #model = DQN.load(log_dir + "best_model.pkl", env=env)
+    model = DQN.load(models + "best_model_dqn.pkl", env=env)
     model.learn(total_timesteps=500000, log_interval=200, callback=callback)
     end_date = datetime.now()
     hours = int((end_date - start_date).total_seconds()) // 3600

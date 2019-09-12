@@ -16,7 +16,7 @@ from stable_baselines.common.vec_env import DummyVecEnv
 from stable_baselines import DQN
 
 if __name__ == "__main__":
-    steering_angles = np.array([-0.7, -0.25, 0.0, 0.25, 0.7])
+    steering_angles = np.array([-0.7, -0.5, -0.25, 0.0, 0.25, 0.5, 0.7])
     env = AirSimGym(continuous=False, off_road_dist=3.9, max_speed=8.0, scale_reward=True, steering_angles=steering_angles)
     env = DummyVecEnv([lambda: env])
 

@@ -420,7 +420,7 @@ class AirSimGym(gym.Env):
                     reward, done = -1, False
             else:
                 #self.off_road_cumulative_reward = 0
-                closer_to_goal_contrib = 1 if distance_from_target < self.last_known_distance else 0 
+                closer_to_goal_contrib = 0.5 if distance_from_target < self.last_known_distance else 0 
                 reward, done = (self.hold_mid_reward_mul * np.exp(-nearest_line_distance * self.hold_mid_reward_decay_rate) + self._speed_contrib() + closer_to_goal_contrib), False
 
         return reward / self.reward_scale_factor, done
@@ -448,7 +448,7 @@ class AirSimGym(gym.Env):
         """
         Returns the cropped front camera image
         """
-        image_response = self.client.simGetImages([airsim.ImageRequest(0, airsim.ImageType.Scene, False, False)])[0]
+        image_response = self.client.simGetImages([airsim.ImageRequest("MyCamera1", airsim.ImageType.Scene, False, False)])[0]
         image1d = np.frombuffer(image_response.image_data_uint8, dtype=np.uint8)
         image_rgba = image1d.reshape(image_response.height, image_response.width, self.n_channels_env) # some envs. use diffrent number of channels (like l. mountains and nh)
 
