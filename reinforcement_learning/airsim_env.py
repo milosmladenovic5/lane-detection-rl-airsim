@@ -27,6 +27,13 @@ region_of_interest_vertices = [
 TARGET_LATITUDE =  47.645778419398034
 TARGET_LONGITUDE = -122.13657136870823
 
+LOW_YELLOW_H = 18
+LOW_YELLOW_S = 25
+LOW_YELLOW_V = 120
+
+HIGH_YELLOW_H = 48
+HIGH_YELLOW_S = 200
+HIGH_YELLOW_V = 260
 
 HEIGHT = 65
 WIDTH  = 255
@@ -34,7 +41,7 @@ CENTER = np.array([WIDTH // 2, HEIGHT // 2])
 
 MAX_DISTANCE_ALLOWED = 60
 
-GRAY_DIFFERENCE_THRESHOLD = 25
+GRAY_DIFFERENCE_THRESHOLD = 20
 LEFT_RIGHT_DIFF_TRESHOLD = 18
 
 LEFT_PIXEL_DISTANCE = 50
@@ -256,28 +263,28 @@ class AirSimGym(gym.Env):
     def detect_lines(self, img):
         frame = cv2.GaussianBlur(img, (5, 5), 0)
         hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
-        low_yellow = np.array([18, 25, 140])
-        up_yellow = np.array([48, 200, 180])
+        low_yellow = np.array([LOW_YELLOW_H, LOW_YELLOW_S, LOW_YELLOW_V])
+        up_yellow = np.array([HIGH_YELLOW_H, HIGH_YELLOW_S, HIGH_YELLOW_V])
         mask = cv2.inRange(hsv, low_yellow, up_yellow)
         
         edges = cv2.Canny(mask, 100, 150)
 
         #cropped_image = region_of_interest(edges, np.array([region_of_interest_vertices], np.int32))
-        lines = cv2.HoughLinesP(edges, 2, np.pi/180, 25, maxLineGap=3)
+        lines = cv2.HoughLinesP(edges, 2, np.pi/180, 30, maxLineGap=3)
 
         return lines
 
     def detect_lines_hough_regular(self, img):
         frame = cv2.GaussianBlur(img, (5, 5), 0)
         hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
-        low_yellow = np.array([18, 25, 140])
-        up_yellow = np.array([48, 255, 255])
+        low_yellow = np.array([LOW_YELLOW_H, LOW_YELLOW_S, LOW_YELLOW_V])
+        up_yellow = np.array([HIGH_YELLOW_H, HIGH_YELLOW_S, HIGH_YELLOW_V])
         mask = cv2.inRange(hsv, low_yellow, up_yellow)
         
         edges = cv2.Canny(mask, 75, 150)
 
-        cropped_image = region_of_interest(edges, np.array([region_of_interest_vertices], np.int32))
-        lines = cv2.HoughLines(cropped_image, 1, np.pi/180, 12)
+        #cropped_image = region_of_interest(edges, np.array([region_of_interest_vertices], np.int32))
+        lines = cv2.HoughLines(edges, 2, np.pi/180, 37)
 
         return lines
 
@@ -312,13 +319,12 @@ class AirSimGym(gym.Env):
                     nearest_line_distance = min(nearest_line_distance,\
                                                 distance_from_the_line(np.array([line[0][0], line[0][1]]), np.array([line[0][2], line[0][3]]), CENTER))
 
-            return nearest_line_distance/MAX_DISTANCE_ALLOWED
+            return nearest_line_distance/MAX_DISTANCE_ALLOWED if nearest_line_distance < MAX_DISTANCE_ALLOWED else -1
         else:
             return -1
 
     def calculate_distance_regular_hough_transform(self):
-        img = self._get_image()
-        img.setflags(write=1)
+        img = np.array(self._get_image())
         #brightness(img, 50)
         lines = self.detect_lines_hough_regular(img)
 
@@ -327,7 +333,7 @@ class AirSimGym(gym.Env):
             lines = self.detect_lines_hough_regular(img)
         
         if lines is not None:
-            nearest_line_distance = np.inf
+            nearest_line_distance = MAX_DISTANCE_ALLOWED
             for rho, theta in lines[0]:
                 a = np.cos(theta)
                 b = np.sin(theta)
@@ -383,7 +389,7 @@ class AirSimGym(gym.Env):
     def _goal_reached(self):
         """
         Checks whether the end goal is reached based on the env. parameters
-        """
+        """ 
         return euclidean(self.current_position, self.goal) <= self.goal_reached_dist
     
     def _pos_as_np_array(self):
@@ -409,17 +415,17 @@ class AirSimGym(gym.Env):
         elif self.steps_at_min_speed_count == self.steps_at_min_speed_allowed:
             reward, done =  self.stuck_reward, True   
         else:
-            nearest_line_distance = self.calculate_distance()
+            nearest_line_distance = self.calculate_distance_regular_hough_transform()
                 
             if nearest_line_distance == -1:
                 self.off_road_cumulative_reward += -1 
-                if self.off_road_cumulative_reward == -5:
+                if self.off_road_cumulative_reward == -8:
                     self.off_road_cumulative_reward = 0
                     reward, done = self.off_road_reward, True
                 else:
                     reward, done = -1, False
             else:
-                self.off_road_cumulative_reward = 0
+                #self.off_road_cumulative_reward = 0
                 closer_to_goal_contrib = 0.5 if distance_from_target < self.last_known_distance else 0 
                 reward, done = (self.hold_mid_reward_mul * np.exp(-nearest_line_distance * self.hold_mid_reward_decay_rate) + self._speed_contrib() + closer_to_goal_contrib), False
 

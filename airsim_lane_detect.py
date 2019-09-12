@@ -17,13 +17,24 @@ region_of_interest_vertices = [
     (205, 0)
 ]
 
+TARGET_LATITUDE =  47.645778419398034
+TARGET_LONGITUDE = -122.13657136870823
+
+LOW_YELLOW_H = 18
+LOW_YELLOW_S = 25
+LOW_YELLOW_V = 120
+
+HIGH_YELLOW_H = 48
+HIGH_YELLOW_S = 200
+HIGH_YELLOW_V = 260
+
 HEIGHT = 65
 WIDTH  = 255
 CENTER = np.array([WIDTH // 2, HEIGHT // 2])
 
 MAX_DISTANCE_ALLOWED = 60
 
-GRAY_DIFFERENCE_THRESHOLD = 25
+GRAY_DIFFERENCE_THRESHOLD = 20
 LEFT_RIGHT_DIFF_TRESHOLD = 18
 
 LEFT_PIXEL_DISTANCE = 50
@@ -77,18 +88,17 @@ def get_image(crop_h1=70, crop_h2=135, crop_w1=0, crop_w2=255):
 def detect_lines(img):
     frame = cv2.GaussianBlur(img, (5, 5), 0)
     hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
-    low_yellow = np.array([18, 25, 140])
-    up_yellow = np.array([48, 200, 160])
+    low_yellow = np.array([LOW_YELLOW_H, LOW_YELLOW_S, LOW_YELLOW_V])
+    up_yellow = np.array([HIGH_YELLOW_H, HIGH_YELLOW_S, HIGH_YELLOW_V])
     mask = cv2.inRange(hsv, low_yellow, up_yellow)
     
     edges = cv2.Canny(mask, 100, 150)
-    #cv2.imshow('frame',edges)
-    
+
     #cropped_image = region_of_interest(edges, np.array([region_of_interest_vertices], np.int32))
-    #lines = cv2.HoughLines(cropped_image, 2, np.pi/180, 25) #, maxLineGap=3)
-    lines = cv2.HoughLinesP(edges, 2, np.pi/180, 25, maxLineGap=3)
-    
-    return lines
+    lines = cv2.HoughLines(edges, 2, np.pi/180, 37) #, maxLineGap=3)
+    #lines = cv2.HoughLinesP(edges, 2, np.pi/180, 30, maxLineGap=3)
+ 
+    return lines    
 
 def val_diff_greater_than_threshold(threshold, first_val, second_val, third_val):
     diff_first_second = 0
@@ -100,6 +110,12 @@ def val_diff_greater_than_threshold(threshold, first_val, second_val, third_val)
     diff_first_third = first_val - third_val if first_val > third_val else third_val - first_val 
     
     return diff_first_second > threshold or diff_second_third > threshold or diff_first_third > threshold 
+
+def calculate_k_and_n_for_line(x1, y1, x2, y2):
+    k = (y2 - y1) / (x2 - x1)
+    n = x1 * k + y1
+
+    return k, n
 
 def diff_between_two_rgb_threshold(threshold, r1, g1, b1, r2, g2, b2):
     diff_r1_r2 = 0
@@ -149,24 +165,34 @@ def _draw_lines2(img, lines):
         x2 = int(x0 - 1000*(-b))
         y2 = int(y0 - 1000*(a))
 
-        # line_start_x = x1
-        # line_start_y = y1
+        # P1 (x1_img, y1_img)
+        # P2 (x2_img, y2_img)
+        #n, k = calculate_k_and_n_for_line(x1, y1, x2, y2)
 
-        # red_left = img[line_start_y][line_start_x - LEFT_PIXEL_DISTANCE if line_start_x > LEFT_PIXEL_DISTANCE else line_start_x][0]
-        # green_left = img[line_start_y][line_start_x - LEFT_PIXEL_DISTANCE if line_start_x > LEFT_PIXEL_DISTANCE else line_start_x][1]
-        # blue_left = img[line_start_y][line_start_x - LEFT_PIXEL_DISTANCE if line_start_x > LEFT_PIXEL_DISTANCE else line_start_x][2]
+        #print (n, k)
+        # x1_img = (HEIGHT - n)/k
+        # y1_img = HEIGHT - 1 # -1 to take the above pixel
 
-        # red_right = img[line_start_y][line_start_x + RIGHT_PIXEL_DISTANCE if line_start_x > RIGHT_PIXEL_DISTANCE else line_start_x][0]
-        # green_right = img[line_start_y][line_start_x + RIGHT_PIXEL_DISTANCE if line_start_x > RIGHT_PIXEL_DISTANCE else line_start_x][1]
-        # blue_right = img[line_start_y][line_start_x + RIGHT_PIXEL_DISTANCE if line_start_x > RIGHT_PIXEL_DISTANCE else line_start_x][2]
+        # x2_img = 1 # 0 + 1 to take below pixel
+        # y2_img = n
 
-        # if not (value_difference_greater_than_treshold(GRAY_DIFFERENCE_TRESHOLD, red_left, green_left) \
-        #     or value_difference_greater_than_treshold(GRAY_DIFFERENCE_TRESHOLD, red_left, blue_left) \
-        #     or value_difference_greater_than_treshold(GRAY_DIFFERENCE_TRESHOLD, blue_left, green_left) \
-        #     or value_difference_greater_than_treshold(GRAY_DIFFERENCE_TRESHOLD, red_right, green_right) \
-        #     or value_difference_greater_than_treshold(GRAY_DIFFERENCE_TRESHOLD, red_right, blue_right) \
-        #     or value_difference_greater_than_treshold(GRAY_DIFFERENCE_TRESHOLD, blue_right, green_right)):
-        print(x1, y1, x2, y2)
+        # print (x1_img, y1_img)
+
+        # line_start_x = x1_img
+        # line_start_y = y1_img
+
+        # red_left = img[line_start_y][line_start_x - LEFT_PIXEL_DISTANCE if line_start_x - LEFT_PIXEL_DISTANCE > 0 else line_start_x][0]
+        # green_left = img[line_start_y][line_start_x - LEFT_PIXEL_DISTANCE if line_start_x - LEFT_PIXEL_DISTANCE > 0 else line_start_x][1]
+        # blue_left = img[line_start_y][line_start_x - LEFT_PIXEL_DISTANCE if line_start_x - LEFT_PIXEL_DISTANCE > 0 else line_start_x][2]
+
+        # red_right = img[line_start_y][line_start_x + RIGHT_PIXEL_DISTANCE if line_start_x + RIGHT_PIXEL_DISTANCE < WIDTH else line_start_x][0]
+        # green_right = img[line_start_y][line_start_x + RIGHT_PIXEL_DISTANCE if line_start_x + RIGHT_PIXEL_DISTANCE < WIDTH else line_start_x][1]
+        # blue_right = img[line_start_y][line_start_x + RIGHT_PIXEL_DISTANCE if line_start_x + RIGHT_PIXEL_DISTANCE < WIDTH else line_start_x][2]
+
+        # if not (val_diff_greater_than_threshold(GRAY_DIFFERENCE_THRESHOLD, red_left, green_left, blue_left) \
+        #    or val_diff_greater_than_threshold(GRAY_DIFFERENCE_THRESHOLD, red_right, green_right, blue_right) \
+        #    or diff_between_two_rgb_threshold(LEFT_RIGHT_DIFF_TRESHOLD, red_left, green_left, blue_left, red_right, green_right, blue_right)):
+        #    #print(x1, y1, x2, y2)
 
         cv2.line(img,(x1,y1),(x2,y2),(0,0,255), 2)
 
@@ -199,16 +225,16 @@ while True:
     lines = detect_lines(img)
 
     if lines is not None:
-        #_draw_lines2(img, lines)
-        _draw_lines(img,lines)
+        _draw_lines2(img, lines)
+        #_draw_lines(img,lines)
         #for i in range (0,255, LEFT_PIXEL_DISTANCE):
         #    cv2.line(img, (i, 65), (i, 0), (0, 255, 0), 5)
     else: 
-        brightness(img, 25)
+        brightness(img, 30)
         lines = detect_lines(img)
         if lines is not None:
+            _draw_lines2(img, lines)
             #_draw_lines(img, lines)
-            _draw_lines(img, lines)
             #for i in range (0,255, LEFT_PIXEL_DISTANCE):
             #    cv2.line(img, (i, 65), (i, 0), (0, 255, 0), 5)
 
@@ -234,22 +260,22 @@ while True:
     # else:
     #    print("Dead")
 
-    # if lines is not None:
-    #     nearest_line_distance = np.inf
-    #     # for rho, theta in lines[0]:
-    #     #     a = np.cos(theta)
-    #     #     b = np.sin(theta)
-    #     #     x0 = a*rho
-    #     #     y0 = b*rho
-    #     #     x1 = int(x0 + 1000*(-b))
-    #     #     y1 = int(y0 + 1000*(a))
-    #     #     x2 = int(x0 - 1000*(-b))
-    #     #     y2 = int(y0 - 1000*(a))
-    #     #     nearest_line_distance = min(nearest_line_distance,\
-    #     #                             distance_from_the_line(np.array([x1, y1]), np.array([x2, y2]), CENTER))
-    #     print(nearest_line_distance/MAX_DISTANCE_ALLOWED)
-    # else:
-    #     print("Dead")
+    if lines is not None:
+        nearest_line_distance = MAX_DISTANCE_ALLOWED
+        for rho, theta in lines[0]:
+            a = np.cos(theta)
+            b = np.sin(theta)
+            x0 = a*rho
+            y0 = b*rho
+            x1 = int(x0 + 1000*(-b))
+            y1 = int(y0 + 1000*(a))
+            x2 = int(x0 - 1000*(-b))
+            y2 = int(y0 - 1000*(a))
+            nearest_line_distance = min(nearest_line_distance,\
+                                    distance_from_the_line(np.array([x1, y1]), np.array([x2, y2]), CENTER))
+        print(nearest_line_distance/MAX_DISTANCE_ALLOWED)
+    else:
+        print("Dead")
 
     cv2.imshow('frame',img)
     if cv2.waitKey(1) & 0xFF == ord('q'):
