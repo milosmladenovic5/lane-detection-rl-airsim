@@ -1,6 +1,7 @@
 import gym
 from baselines import deepq
-from airsim_env import AirSimEnv
+from airsim_env import AirSimGym
+import numpy as np
 
 def callback(lcl, _glb):
     # stop training if reward exceeds 199
