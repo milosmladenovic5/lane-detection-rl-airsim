@@ -1,0 +1,54 @@
+#settings for settings.json
+
+{
+	"SeeDocsAt": "https://github.com/Microsoft/AirSim/blob/master/docs/settings.md",
+	"SettingsVersion": 1.2,
+	"SimMode": "Car",
+	"ViewMode": "NoDisplay",
+	"TimeOfDay": {
+			"Enabled": true,
+			"StartDateTime": "2018-08-08 21:30:00"
+	},	
+	"Vehicles": {
+		"PhysXCar" : {
+			"VehicleType": "PhysXCar",
+			"X": 38.719251861572266, "Y": -12.13124942779541, "Z": -0.7209484577178955,
+			"Roll": -0.01, "Yaw": 11.93971358830278,
+			"Cameras": { 
+				"MyCamera1": {
+				  "X": 2, "Y": 0, "Z": -1,
+				  "Pitch": -11.75, "Roll": 0, "Yaw": 0
+				}
+			}
+		}
+	},
+	"SubWindows": [
+		{"WindowID": 1, "ImageType": 0, "CameraName": "MyCamera1", "Visible": true}
+	],
+	"Recording": {
+		"RecordOnMove": true,
+		"RecordInterval": 0.05,
+		"Cameras": [
+			{ "CameraName": "MyCamera1", "ImageType": 0, "PixelsAsFloat": false, "Compress": true, "AutoExposureMaxBrightness": 1, "AutoExposureMinBrightness": 0.6, "FOV_Degrees": 90 }
+		]
+	}
+}
+  
+
+
+#dqn parameters
+
+ steering_angles = np.array([-0.65, -0.5, -0.25, -0.1, 0.0, 1.0, 0.25, 0.5, 0.65])
+    env = AirSimGym(continuous=False, off_road_dist=2.9, max_speed=4.1, scale_reward=True, steering_angles=steering_angles)
+    model = deepq.learn(
+        env,
+        network="cnn",
+        lr=0.001,
+        total_timesteps=180000,
+        buffer_size=60000,
+        exploration_fraction=0.1,
+        exploration_final_eps=0.018,
+        print_freq=2,
+        callback=callback
+        #,load_path='airsim_dqn_test_model.pkl'
+    )

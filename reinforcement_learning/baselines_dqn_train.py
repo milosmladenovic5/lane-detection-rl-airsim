@@ -10,21 +10,31 @@ def callback(lcl, _glb):
 
 def main():
     steering_angles = np.array([-0.65, -0.5, -0.25, -0.1, 0.0, 1.0, 0.25, 0.5, 0.65])
-    env = AirSimGym(continuous=False, off_road_dist=2.9, max_speed=4.5, scale_reward=True, steering_angles=steering_angles)
-    act = deepq.learn(
+    env = AirSimGym(continuous=False, off_road_dist=2.9, max_speed=4.1, scale_reward=True, steering_angles=steering_angles)
+    model = deepq.learn(
         env,
         network="cnn",
-        lr=1e-3,
-        total_timesteps=100000,
-        buffer_size=50000,
+        lr=0.0011,
+        total_timesteps=200000,
+        buffer_size=65000,
         exploration_fraction=0.1,
-        exploration_final_eps=0.02,
+        exploration_final_eps=0.015,
         print_freq=1,
         callback=callback
-        #load_path='airsim_dqn_test_model.pkl'
+        #,load_path='airsim_dqn_test_model.pkl'
     )
     print("Saving model to airsim_dqn_test_model.pkl")
-    act.save("airsim_dqn_test_model.pkl")
+    model.save("airsim_dqn_test_model.pkl")
+
+    print("Now playing saved model.")
+    for i in range (0, 15):
+        obs, done = env.reset(), False
+        episode_rew = 0
+        while not done:
+            env.render()
+            obs, rew, done, _ = env.step(model(obs[None])[0])
+            episode_rew += rew
+        print("Episode reward", episode_rew)
 
 if __name__ == "__main__":
     main()

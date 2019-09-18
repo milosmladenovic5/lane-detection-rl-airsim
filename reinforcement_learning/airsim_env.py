@@ -24,8 +24,8 @@ region_of_interest_vertices = [
     (205, 0)
 ]
 
-TARGET_LATITUDE =  47.645778419398034
-TARGET_LONGITUDE = -122.13657136870823
+TARGET_LATITUDE =  47.64928673193254
+TARGET_LONGITUDE = -122.13988610986424
 
 LOW_YELLOW_H = 18
 LOW_YELLOW_S = 25
@@ -46,6 +46,8 @@ LEFT_RIGHT_DIFF_TRESHOLD = 18
 
 LEFT_PIXEL_DISTANCE = 50
 RIGHT_PIXEL_DISTANCE = 50
+
+STEPS_BEFORE_RESETING_OFFROAD = 120
 
 def region_of_interest(img, vertices):
         # Define a blank matrix that matches the image height/width.
@@ -207,6 +209,7 @@ class AirSimGym(gym.Env):
         self.client.enableApiControl(api_control)
 
         self.off_road_cumulative_reward = 0
+        self.onroad_steps = 0
         
         self.home_point = self.client.getHomeGeoPoint()
         print (f"HomePoint is {self.home_point}")
@@ -408,6 +411,8 @@ class AirSimGym(gym.Env):
         geo_point_current = self.client.simGetGroundTruthEnvironment().geo_point 
         distance_from_target = get_distance_from_target(geo_point_current)
 
+        if (distance_from_target < 10):
+            reward, done = self.goal_reached_reward, True
         if (self._goal_reached() if self.goal_point_exists else False):
             reward, done = self.goal_reached_reward, True     
         elif self.client.simGetCollisionInfo().has_collided:
@@ -418,6 +423,7 @@ class AirSimGym(gym.Env):
             nearest_line_distance = self.calculate_distance_regular_hough_transform()
                 
             if nearest_line_distance == -1:
+                #self.onroad_steps = 0
                 self.off_road_cumulative_reward += -1 
                 if self.off_road_cumulative_reward == -8:
                     self.off_road_cumulative_reward = 0
@@ -425,8 +431,12 @@ class AirSimGym(gym.Env):
                 else:
                     reward, done = -1, False
             else:
+                #self.onroad_steps += 1
+                #if (self.onroad_steps == STEPS_BEFORE_RESETING_OFFROAD):
+                #    self.off_road_cumulative_reward = 0
+                #    print ("Offroad punishment stack reset.")
                 #self.off_road_cumulative_reward = 0
-                closer_to_goal_contrib = 0.5 if distance_from_target < self.last_known_distance else 0 
+                closer_to_goal_contrib = 0.4 if distance_from_target < self.last_known_distance else 0 
                 reward, done = (self.hold_mid_reward_mul * np.exp(-nearest_line_distance * self.hold_mid_reward_decay_rate) + self._speed_contrib() + closer_to_goal_contrib), False
 
         return reward / self.reward_scale_factor, done
